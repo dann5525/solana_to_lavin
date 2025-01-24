@@ -11,12 +11,13 @@ use quic_geyser_common::{
     types::{
         block_meta::BlockMeta,
         slot_identifier::SlotIdentifier,
-        transaction::{Transaction, TransactionMeta},
+        transaction::{Transaction, TransactionMeta, TransactionTokenBalanceSerializable}
+        
     },
 };
 use quic_geyser_server::quic_server::QuicServer;
 use solana_sdk::{
-    account::Account, clock::Slot, commitment_config::CommitmentConfig, message::v0::Message,
+    account::Account, clock::Slot, clock::UnixTimestamp,  commitment_config::CommitmentConfig, message::v0::Message,
     pubkey::Pubkey,
 };
 
@@ -44,6 +45,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
                 return Err(e);
             }
         };
+        
         let compression_type = config.quic_plugin.compression_parameters.compression_type;
         let enable_block_builder = config.quic_plugin.enable_block_builder;
         let build_blocks_with_accounts = config.quic_plugin.build_blocks_with_accounts;
@@ -70,8 +72,8 @@ impl GeyserPlugin for QuicGeyserPlugin {
         let (mq_tx, mq_rx) = std::sync::mpsc::channel::<ChannelMessage>();
         self.mq_sender = Some(mq_tx);
 
-        // e.g. from config or hardcode
-        let amqp_url = "url here .. or better in config!!";
+        let amqp_url = std::env::var("AMQP_URL").unwrap_or_else(|_| config.amqp_url.clone());
+
 
         let handle = std::thread::spawn(move || {
             // Build a single-threaded tokio runtime
@@ -82,7 +84,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
 
             rt.block_on(async move {
                 // Suppose this function is your tested code
-                if let Err(e) = run_lavin_mq_loop(amqp_url, mq_rx).await {
+                if let Err(e) = run_lavin_mq_loop(&amqp_url, mq_rx).await {
                     // Proper error handling: log and exit
                     log::error!("Lavin MQ loop error: {e:?}");
                 }
@@ -229,6 +231,9 @@ impl GeyserPlugin for QuicGeyserPlugin {
 
         let status_meta = solana_transaction.transaction_status_meta;
 
+
+       
+
         let transaction = Transaction {
             slot_identifier: SlotIdentifier { slot },
             signatures: solana_transaction.transaction.signatures().to_vec(),
@@ -255,9 +260,9 @@ impl GeyserPlugin for QuicGeyserPlugin {
                                 .parse::<u64>()
                                 .unwrap_or_default(),
                             account_index: b.account_index,
-                            mint: b.mint,
-                            owner: b.owner,
-                            program_id: b.program_id,
+                            mint: b.mint.clone(),
+                            owner: b.owner.clone(),
+                            program_id: b.program_id.clone(),
                         })
                         .collect::<Vec<TransactionTokenBalanceSerializable>>(),
                 ),
@@ -275,9 +280,9 @@ impl GeyserPlugin for QuicGeyserPlugin {
                                 .parse::<u64>()
                                 .unwrap_or_default(),
                             account_index: b.account_index,
-                            mint: b.mint,
-                            owner: b.owner,
-                            program_id: b.program_id,
+                            mint: b.mint.clone(),
+                            owner: b.owner.clone(),
+                            program_id: b.program_id.clone(),
                         })
                         .collect::<Vec<TransactionTokenBalanceSerializable>>(),
                 ),
@@ -290,6 +295,13 @@ impl GeyserPlugin for QuicGeyserPlugin {
             },
             index: solana_transaction.index as u64,
         };
+
+         // **Check** if the transaction has an error, and skip if so:
+         if transaction.transasction_meta.error.is_some() {
+            log::info!("Skipping transaction with error: {:?}", transaction.transasction_meta.error);
+            return Ok(()); 
+            // or do whatever "stop" logic is appropriate
+        }
 
         let transaction_message = ChannelMessage::Transaction(Box::new(transaction));
 

@@ -1,24 +1,31 @@
-use std::thread;
+// tests/test_lavin_mq_loop_independent.rs (example test file)
+
 use std::sync::mpsc;
+use std::thread;
+
+// IMPORTANT: Ensure these crates are declared in your Cargo.toml
+// e.g. quic_geyser_common = { path = "../quic_geyser_common" }
 use quic_geyser_common::{
     channel_message::ChannelMessage,
     types::{
         slot_identifier::SlotIdentifier,
         transaction::{Transaction, TransactionMeta},
     },
-    // If your "Message" struct is from quic_geyser_common::types::transaction::Message,
-    // you might need to import it too:
-    //   transaction::Message,
 };
-use solana_sdk::{hash::Hash, message::v0::{LoadedAddresses, Message as SolanaMsg}};
+
+use solana_sdk::{
+    hash::Hash,
+    // Make sure your version of solana_sdk is >= 1.14
+    message::v0::{LoadedAddresses, Message as SolanaMsg},
+};
+
+// This requires that quic_geyser_plugin has a pub mod lavin_mq_loop in its lib.rs
 use quic_geyser_plugin::lavin_mq_loop::run_lavin_mq_loop;
 
 #[test]
 fn test_lavin_mq_loop_independent() {
-    // 1) Create an MPSC channel
     let (tx, rx) = mpsc::channel::<ChannelMessage>();
 
-    // 2) Spawn a thread that runs the Lavin MQ loop
     let handle = thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -26,22 +33,20 @@ fn test_lavin_mq_loop_independent() {
             .unwrap();
 
         rt.block_on(async move {
-            // Hardcode your AMQP URL or read from test config
-            let amqp_url ="amqps://dan:6b7dc305-0f23-48c6-beba-1ee20e7a2edd@polar-ram.lmq.cloudamqp.com/botcloud ";
+            // ensure your AMQP URL is valid
+            let amqp_url = "amqps://dan:04828406-73c5-4d05-8f25-a3a564bf00ac@polar-ram.lmq.cloudamqp.com/botcloud";
             if let Err(e) = run_lavin_mq_loop(amqp_url, rx).await {
                 eprintln!("MQ loop error: {e:?}");
             }
         });
     });
 
-    // 3) Build a test transaction *without* using Default::
-    //    Fill each field explicitly.
+    // Build dummy test transaction
+    // Make sure the field name is spelled exactly as your struct says (transasction_meta vs transaction_meta)
     let dummy_tx = Transaction {
         slot_identifier: SlotIdentifier { slot: 123 },
-        signatures: vec![],  // or add real signatures
-        // Construct your "message" field with actual data:
+        signatures: vec![], 
         message: SolanaMsg {
-            // e.g. a minimal header
             header: solana_sdk::message::MessageHeader {
                 num_required_signatures: 1,
                 num_readonly_signed_accounts: 0,
@@ -58,6 +63,11 @@ fn test_lavin_mq_loop_independent() {
             fee: 0,
             pre_balances: vec![],
             post_balances: vec![],
+            // If your struct has these fields optional,
+            // ensure they're declared as `Option<Vec<_>>`.
+            // Or if your struct has them as `Option<...>` use None:
+            pre_token_balances: None,
+            post_token_balances: None,
             inner_instructions: None,
             log_messages: None,
             rewards: None,
@@ -71,17 +81,12 @@ fn test_lavin_mq_loop_independent() {
         index: 99,
     };
 
-    // Create a ChannelMessage::Transaction
+    // Send it along
     let channel_msg = ChannelMessage::Transaction(Box::new(dummy_tx));
+    tx.send(channel_msg).expect("Failed to send test transaction");
 
-    // 4) Send it to the MQ loop
-    tx.send(channel_msg).expect("Failed sending test transaction to MQ loop");
+    drop(tx); // closes channel so loop can exit gracefully
 
-    // Let the MQ loop stop by dropping the sender
-    drop(tx);
-
-    // 5) Join the thread so the test doesn't exit prematurely
     handle.join().unwrap();
     println!("Test completed OK");
 }
-

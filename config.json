@@ -8,6 +8,7 @@
     "compression_parameters": {
         "compression_type": "None"
       }
-  }
+  },
+  "amqp_url": "amqp://user:password@localhost:5672"
 }
 

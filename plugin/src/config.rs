@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct Config {
     pub libpath: String,
-
+    pub amqp_url: String,
     pub quic_plugin: ConfigQuicPlugin,
 }
 
