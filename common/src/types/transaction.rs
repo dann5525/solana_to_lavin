@@ -9,6 +9,15 @@ use solana_transaction_status::{InnerInstructions, Rewards};
 
 use super::slot_identifier::SlotIdentifier;
 
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct TransactionTokenBalanceSerializable {
+    pub account_index: u8,
+    pub mint: String,
+    pub token_amount: u64,
+    pub owner: String,
+    pub program_id: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[repr(C)]
 pub struct TransactionMeta {
@@ -16,8 +25,8 @@ pub struct TransactionMeta {
     pub fee: u64,
     pub pre_balances: Vec<u64>,
     pub post_balances: Vec<u64>,
-    pub pre_token_balances: Option<Vec<u64>>,
-    pub post_token_balances: Option<Vec<u64>>,
+    pub pre_token_balances: Option<Vec<TransactionTokenBalanceSerializable>>,
+    pub post_token_balances: Option<Vec<TransactionTokenBalanceSerializable>>,
     pub inner_instructions: Option<Vec<InnerInstructions>>,
     pub log_messages: Option<Vec<String>>,
     pub rewards: Option<Rewards>,

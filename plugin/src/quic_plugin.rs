@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::lavin_mq_loop::run_lavin_mq_loop;
 use agave_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
     ReplicaEntryInfoVersions, ReplicaTransactionInfoVersions, Result as PluginResult, SlotStatus,
@@ -18,15 +19,13 @@ use solana_sdk::{
     account::Account, clock::Slot, commitment_config::CommitmentConfig, message::v0::Message,
     pubkey::Pubkey,
 };
-use crate::lavin_mq_loop::run_lavin_mq_loop;
-
 
 #[derive(Debug, Default)]
 pub struct QuicGeyserPlugin {
     quic_server: Option<QuicServer>,
     block_builder_channel: Option<std::sync::mpsc::Sender<ChannelMessage>>,
     rpc_server_message_channel: Option<std::sync::mpsc::Sender<ChannelMessage>>,
-     // Add these fields:
+    // Add these fields:
     mq_sender: Option<std::sync::mpsc::Sender<ChannelMessage>>,
     mq_thread_handle: Option<std::thread::JoinHandle<()>>,
 }
@@ -67,29 +66,29 @@ impl GeyserPlugin for QuicGeyserPlugin {
 
         self.quic_server = Some(quic_server);
 
-         // --- Start the MQ server thread
-    let (mq_tx, mq_rx) = std::sync::mpsc::channel::<ChannelMessage>();
-    self.mq_sender = Some(mq_tx);
+        // --- Start the MQ server thread
+        let (mq_tx, mq_rx) = std::sync::mpsc::channel::<ChannelMessage>();
+        self.mq_sender = Some(mq_tx);
 
-    // e.g. from config or hardcode
-    let amqp_url = "url here .. or better in config!!";
+        // e.g. from config or hardcode
+        let amqp_url = "url here .. or better in config!!";
 
-    let handle = std::thread::spawn(move || {
-        // Build a single-threaded tokio runtime
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to build tokio runtime for MQ loop");
+        let handle = std::thread::spawn(move || {
+            // Build a single-threaded tokio runtime
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to build tokio runtime for MQ loop");
 
-        rt.block_on(async move {
-            // Suppose this function is your tested code 
-            if let Err(e) = run_lavin_mq_loop(amqp_url, mq_rx).await {
-                // Proper error handling: log and exit
-                log::error!("Lavin MQ loop error: {e:?}");
-            }
+            rt.block_on(async move {
+                // Suppose this function is your tested code
+                if let Err(e) = run_lavin_mq_loop(amqp_url, mq_rx).await {
+                    // Proper error handling: log and exit
+                    log::error!("Lavin MQ loop error: {e:?}");
+                }
+            });
         });
-    });
-    self.mq_thread_handle = Some(handle);
+        self.mq_thread_handle = Some(handle);
 
         log::info!("geyser plugin loaded ok ()");
         Ok(())
@@ -192,18 +191,15 @@ impl GeyserPlugin for QuicGeyserPlugin {
         transaction: ReplicaTransactionInfoVersions,
         slot: Slot,
     ) -> PluginResult<()> {
-        
         let Some(quic_server) = &self.quic_server else {
             return Ok(());
         };
-       
+
         let ReplicaTransactionInfoVersions::V0_0_2(solana_transaction) = transaction else {
             return Err(GeyserPluginError::TransactionUpdateError {
                 msg: "Unsupported transaction version".to_string(),
             });
         };
-
-       
 
         let message = solana_transaction.transaction.message();
         let mut account_keys = vec![];
@@ -216,7 +212,8 @@ impl GeyserPlugin for QuicGeyserPlugin {
             }
         }
 
-        let pump_fun_pubkey = Pubkey::try_from("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P").expect("Valid pubkey");
+        let pump_fun_pubkey =
+            Pubkey::try_from("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P").expect("Valid pubkey");
         if !account_keys.contains(&pump_fun_pubkey) {
             // Skip transactions not involving pump.fun
             return Ok(());
@@ -245,19 +242,45 @@ impl GeyserPlugin for QuicGeyserPlugin {
                 fee: status_meta.fee,
                 pre_balances: status_meta.pre_balances.clone(),
                 post_balances: status_meta.post_balances.clone(),
-                post_token_balances: Some(status_meta.post_token_balances
-                    .as_ref()
-                    .unwrap_or(&Vec::new())
-                    .iter()
-                    .map(|b| b.ui_token_amount.amount.parse::<u64>().unwrap_or_default())
-                    .collect::<Vec<u64>>()), 
-                
-                pre_token_balances: Some(status_meta.pre_token_balances
-                    .as_ref()
-                    .unwrap_or(&Vec::new())
-                    .iter()
-                    .map(|b| b.ui_token_amount.amount.parse::<u64>().unwrap_or_default())
-                    .collect::<Vec<u64>>()),
+                post_token_balances: Some(
+                    status_meta
+                        .post_token_balances
+                        .as_ref()
+                        .unwrap_or(&Vec::new())
+                        .iter()
+                        .map(|b| TransactionTokenBalanceSerializable {
+                            token_amount: b
+                                .ui_token_amount
+                                .amount
+                                .parse::<u64>()
+                                .unwrap_or_default(),
+                            account_index: b.account_index,
+                            mint: b.mint,
+                            owner: b.owner,
+                            program_id: b.program_id,
+                        })
+                        .collect::<Vec<TransactionTokenBalanceSerializable>>(),
+                ),
+
+                pre_token_balances: Some(
+                    status_meta
+                        .pre_token_balances
+                        .as_ref()
+                        .unwrap_or(&Vec::new())
+                        .iter()
+                        .map(|b| TransactionTokenBalanceSerializable {
+                            token_amount: b
+                                .ui_token_amount
+                                .amount
+                                .parse::<u64>()
+                                .unwrap_or_default(),
+                            account_index: b.account_index,
+                            mint: b.mint,
+                            owner: b.owner,
+                            program_id: b.program_id,
+                        })
+                        .collect::<Vec<TransactionTokenBalanceSerializable>>(),
+                ),
                 inner_instructions: status_meta.inner_instructions.clone(),
                 log_messages: status_meta.log_messages.clone(),
                 rewards: status_meta.rewards.clone(),
@@ -269,8 +292,6 @@ impl GeyserPlugin for QuicGeyserPlugin {
         };
 
         let transaction_message = ChannelMessage::Transaction(Box::new(transaction));
-        
-
 
         if let Some(block_channel) = &self.block_builder_channel {
             let _ = block_channel.send(transaction_message.clone());
