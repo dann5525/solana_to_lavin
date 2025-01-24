@@ -1,0 +1,22 @@
+[package]
+name = "quic-geyser-plugin-proxy"
+version = "0.1.6"
+edition = "2021"
+authors = ["Godmode Galactus"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+solana-rpc-client = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"]  }
+serde = { workspace = true }
+solana-sdk = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+bincode = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+quic-geyser-blocking-client = { workspace = true }
+quic-geyser-common = { workspace = true }
+quic-geyser-server = { workspace = true }

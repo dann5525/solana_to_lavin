@@ -1,0 +1,31 @@
+[package]
+name = "quic-geyser-server"
+version = "0.1.6"
+edition = "2021"
+
+[dependencies]
+solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
+
+serde = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+thiserror = {workspace = true}
+itertools = { workspace = true }
+bincode = { workspace = true }
+ring = {workspace = true}
+quiche = { workspace = true, features = ["boringssl-boring-crate"] }
+quic-geyser-quiche-utils = { workspace = true }
+rcgen = { workspace = true }
+boring = { workspace = true }
+mio = { workspace = true }
+mio_channel = { workspace = true }
+
+quic-geyser-common = { workspace = true }
+
+prometheus = { workspace = true }
+lazy_static = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true }
+tracing-subscriber = { workspace = true }

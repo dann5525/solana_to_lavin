@@ -1,0 +1,13 @@
+{
+  "libpath": "target/release/libquic_geyser_plugin.so",
+  "quic_plugin": {
+    "address": "0.0.0.0:10900",
+    "quic_parameters" : {
+        "disconnect_laggy_client" : false
+    },
+    "compression_parameters": {
+        "compression_type": "None"
+      }
+  }
+}
+

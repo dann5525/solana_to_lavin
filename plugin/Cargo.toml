@@ -1,0 +1,51 @@
+[package]
+name = "quic-geyser-plugin"
+version = "0.1.6"
+edition = "2021"
+authors = ["Godmode Galactus"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "config-check"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+agave-geyser-plugin-interface = {workspace = true}
+
+clap = { workspace = true, features = ["derive"]  }
+serde = { workspace = true }
+solana-sdk = { workspace = true }
+solana-logger = { workspace = true }
+serde_json = { workspace = true }
+solana-rpc-client-api = { workspace = true }
+solana-account-decoder = { workspace = true }
+
+lapin = "2.3.4"    # or any recent version
+bincode = "1.3"  # or any recent version
+anyhow = { workspace = true }
+log = { workspace = true }
+thiserror = {workspace = true}
+
+jsonrpsee = { version = "0.20.0", features = ["macros", "full"] }
+tower = "0.4.13"
+tower-http = { version = "0.4.0", features = ["full"] }
+
+quic-geyser-common = { workspace = true }
+quic-geyser-server = { workspace = true }
+quic-geyser-block-builder = { workspace = true }
+
+itertools = { workspace = true }
+tokio = {workspace = true}
+base64 = {workspace = true}
+
+[build-dependencies]
+anyhow = { workspace = true }
+cargo-lock = { workspace = true }
+git-version = { workspace = true }
+vergen = { workspace = true, features = ["build", "rustc"] }
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
