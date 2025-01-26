@@ -297,7 +297,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
                     .map(|inners| {
                         inners
                             .into_iter()
-                            .map(Into::into) // or `.map(UiInnerInstructions::from)`
+                            .map(UiInnerInstructions::from)
                             .collect::<Vec<UiInnerInstructions>>()
                     }),
                 log_messages: status_meta.log_messages.clone(),
