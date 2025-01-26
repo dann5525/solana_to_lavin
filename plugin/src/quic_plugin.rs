@@ -17,9 +17,10 @@ use quic_geyser_common::{
 };
 use quic_geyser_server::quic_server::QuicServer;
 use solana_sdk::{
-    account::Account, clock::Slot,  commitment_config::CommitmentConfig, message::v0::Message,
+    account::Account, clock::Slot, commitment_config::CommitmentConfig, message::v0::Message,
     pubkey::Pubkey,
 };
+use solana_transaction_status::{InnerInstructions, UiInnerInstructions};
 
 #[derive(Debug, Default)]
 pub struct QuicGeyserPlugin {
@@ -235,7 +236,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
 
         let status_meta = solana_transaction.transaction_status_meta;
 
-
+        
        
 
         let transaction = Transaction {
@@ -290,7 +291,15 @@ impl GeyserPlugin for QuicGeyserPlugin {
                         })
                         .collect::<Vec<TransactionTokenBalanceSerializable>>(),
                 ),
-                inner_instructions: status_meta.inner_instructions.clone(),
+                inner_instructions: status_meta
+                    .inner_instructions
+                    .clone()
+                    .map(|inners| {
+                        inners
+                            .into_iter()
+                            .map(Into::into) // or `.map(UiInnerInstructions::from)`
+                            .collect::<Vec<UiInnerInstructions>>()
+                    }),
                 log_messages: status_meta.log_messages.clone(),
                 rewards: status_meta.rewards.clone(),
                 loaded_addresses: status_meta.loaded_addresses.clone(),

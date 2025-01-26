@@ -3369,6 +3369,7 @@ dependencies = [
  "solana-logger",
  "solana-rpc-client-api",
  "solana-sdk",
+ "solana-transaction-status",
  "thiserror",
  "tokio",
  "tower",

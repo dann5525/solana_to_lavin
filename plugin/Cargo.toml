@@ -22,6 +22,7 @@ solana-logger = { workspace = true }
 serde_json = { workspace = true }
 solana-rpc-client-api = { workspace = true }
 solana-account-decoder = { workspace = true }
+solana-transaction-status = { workspace = true }
 
 lapin = "2.3.4"    # or any recent version
 bincode = "1.3"  # or any recent version

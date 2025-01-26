@@ -5,9 +5,16 @@ use solana_sdk::{
     transaction::TransactionError,
     transaction_context::TransactionReturnData,
 };
-use solana_transaction_status::{InnerInstructions, Rewards};
+use solana_transaction_status::{InnerInstructions, Rewards, UiInnerInstructions};
 
 use super::slot_identifier::SlotIdentifier;
+
+
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct InnerInstructionsSerializable(pub InnerInstructions);
+
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +36,7 @@ pub struct TransactionMeta {
     pub post_balances: Vec<u64>,
     pub pre_token_balances: Option<Vec<TransactionTokenBalanceSerializable>>,
     pub post_token_balances: Option<Vec<TransactionTokenBalanceSerializable>>,
-    pub inner_instructions: Option<Vec<InnerInstructions>>,
+    pub inner_instructions: Option<Vec<UiInnerInstructions>>,
     pub log_messages: Option<Vec<String>>,
     pub rewards: Option<Rewards>,
     pub loaded_addresses: LoadedAddresses,
