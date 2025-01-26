@@ -17,7 +17,7 @@ use quic_geyser_common::{
 };
 use quic_geyser_server::quic_server::QuicServer;
 use solana_sdk::{
-    account::Account, clock::Slot, clock::UnixTimestamp,  commitment_config::CommitmentConfig, message::v0::Message,
+    account::Account, clock::Slot,  commitment_config::CommitmentConfig, message::v0::Message,
     pubkey::Pubkey,
 };
 
@@ -213,11 +213,15 @@ impl GeyserPlugin for QuicGeyserPlugin {
                 None => break,
             }
         }
-
-        let pump_fun_pubkey =
-            Pubkey::try_from("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P").expect("Valid pubkey");
-        if !account_keys.contains(&pump_fun_pubkey) {
-            // Skip transactions not involving pump.fun
+        let pump_pubkeys = [
+            "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+            "EEZZatWNPPsihctMcbmSSSHc5VjMbiSNGBKhyCprzYVo",
+            "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+            "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+            "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+        ].map(|key| Pubkey::try_from(key).expect("Valid pubkey"));
+        
+        if !pump_pubkeys.iter().any(|key| account_keys.contains(key)) {
             return Ok(());
         }
 
@@ -239,7 +243,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
             signatures: solana_transaction.transaction.signatures().to_vec(),
             message: v0_message,
             is_vote: solana_transaction.is_vote,
-            transasction_meta: TransactionMeta {
+            transaction_meta: TransactionMeta {
                 error: match &status_meta.status {
                     Ok(_) => None,
                     Err(e) => Some(e.clone()),
@@ -297,8 +301,8 @@ impl GeyserPlugin for QuicGeyserPlugin {
         };
 
          // **Check** if the transaction has an error, and skip if so:
-         if transaction.transasction_meta.error.is_some() {
-            log::info!("Skipping transaction with error: {:?}", transaction.transasction_meta.error);
+         if transaction.transaction_meta.error.is_some() {
+            log::info!("Skipping transaction with error: {:?}", transaction.transaction_meta.error);
             return Ok(()); 
             // or do whatever "stop" logic is appropriate
         }

@@ -2,12 +2,11 @@ use std::{sync::mpsc::Receiver, time::Duration};
 use anyhow::Result;
 use lapin::{
     options::{BasicPublishOptions, QueueDeclareOptions},
-    publisher_confirm::Confirmation,
     types::FieldTable,
     BasicProperties, Connection, ConnectionProperties,
 };
 use quic_geyser_common::channel_message::ChannelMessage;
-use serde_json::Error as SerdeError;
+
 use tokio::time::sleep;
 
 /// Example of a run_lavin_mq_loop with reconnection logic.

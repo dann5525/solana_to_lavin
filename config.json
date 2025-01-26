@@ -9,6 +9,6 @@
         "compression_type": "None"
       }
   },
-  "amqp_url": "amqp://user:password@localhost:5672"
+  "amqp_url": "url"
 }
 

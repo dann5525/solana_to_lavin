@@ -10,6 +10,7 @@ use solana_transaction_status::{InnerInstructions, Rewards};
 use super::slot_identifier::SlotIdentifier;
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionTokenBalanceSerializable {
     pub account_index: u8,
     pub mint: String,
@@ -20,6 +21,7 @@ pub struct TransactionTokenBalanceSerializable {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[repr(C)]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionMeta {
     pub error: Option<TransactionError>,
     pub fee: u64,
@@ -37,11 +39,12 @@ pub struct TransactionMeta {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[repr(C)]
+#[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub slot_identifier: SlotIdentifier,
     pub signatures: Vec<Signature>,
     pub message: Message,
     pub is_vote: bool,
-    pub transasction_meta: TransactionMeta,
+    pub transaction_meta: TransactionMeta,
     pub index: u64,
 }
