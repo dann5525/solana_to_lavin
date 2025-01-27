@@ -11,16 +11,15 @@ use quic_geyser_common::{
     types::{
         block_meta::BlockMeta,
         slot_identifier::SlotIdentifier,
-        transaction::{Transaction, TransactionMeta, TransactionTokenBalanceSerializable}
-        
+        transaction::{Transaction, TransactionMeta, TransactionTokenBalanceSerializable, InnerInstructionsSerializable}
     },
 };
 use quic_geyser_server::quic_server::QuicServer;
 use solana_sdk::{
-    account::Account, clock::Slot, commitment_config::CommitmentConfig, message::v0::Message,
-    pubkey::Pubkey,
+    account::Account, clock::Slot, commitment_config::CommitmentConfig,
+    message::v0::Message, pubkey::Pubkey,
 };
-use solana_transaction_status::{InnerInstructions, UiInnerInstructions};
+
 
 #[derive(Debug, Default)]
 pub struct QuicGeyserPlugin {
@@ -46,7 +45,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
                 return Err(e);
             }
         };
-        
+
         let compression_type = config.quic_plugin.compression_parameters.compression_type;
         let enable_block_builder = config.quic_plugin.enable_block_builder;
         let build_blocks_with_accounts = config.quic_plugin.build_blocks_with_accounts;
@@ -74,7 +73,6 @@ impl GeyserPlugin for QuicGeyserPlugin {
         self.mq_sender = Some(mq_tx);
 
         let amqp_url = std::env::var("AMQP_URL").unwrap_or_else(|_| config.amqp_url.clone());
-
 
         let handle = std::thread::spawn(move || {
             // Build a single-threaded tokio runtime
@@ -164,7 +162,6 @@ impl GeyserPlugin for QuicGeyserPlugin {
         parent: Option<u64>,
         status: SlotStatus,
     ) -> PluginResult<()> {
-        // Todo
         let Some(quic_server) = &self.quic_server else {
             return Ok(());
         };
@@ -236,8 +233,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
 
         let status_meta = solana_transaction.transaction_status_meta;
 
-        
-       
+      
 
         let transaction = Transaction {
             slot_identifier: SlotIdentifier { slot },
@@ -271,7 +267,6 @@ impl GeyserPlugin for QuicGeyserPlugin {
                         })
                         .collect::<Vec<TransactionTokenBalanceSerializable>>(),
                 ),
-
                 pre_token_balances: Some(
                     status_meta
                         .pre_token_balances
@@ -293,13 +288,14 @@ impl GeyserPlugin for QuicGeyserPlugin {
                 ),
                 inner_instructions: status_meta
                     .inner_instructions
-                    .clone()
-                    .map(|inners| {
-                        inners
-                            .into_iter()
-                            .map(UiInnerInstructions::from)
-                            .collect::<Vec<UiInnerInstructions>>()
+                    .as_ref()
+                    .map(|ix_vec: &Vec<solana_transaction_status::InnerInstructions>| {
+                        ix_vec
+                            .iter()
+                            .map(InnerInstructionsSerializable::from)
+                            .collect::<Vec<InnerInstructionsSerializable>>()
                     }),
+
                 log_messages: status_meta.log_messages.clone(),
                 rewards: status_meta.rewards.clone(),
                 loaded_addresses: status_meta.loaded_addresses.clone(),
@@ -309,11 +305,13 @@ impl GeyserPlugin for QuicGeyserPlugin {
             index: solana_transaction.index as u64,
         };
 
-         // **Check** if the transaction has an error, and skip if so:
-         if transaction.transaction_meta.error.is_some() {
-            log::info!("Skipping transaction with error: {:?}", transaction.transaction_meta.error);
+        // Check if the transaction has an error, and skip if so:
+        if transaction.transaction_meta.error.is_some() {
+            log::info!(
+                "Skipping transaction with error: {:?}", 
+                transaction.transaction_meta.error
+            );
             return Ok(()); 
-            // or do whatever "stop" logic is appropriate
         }
 
         let transaction_message = ChannelMessage::Transaction(Box::new(transaction));
@@ -337,7 +335,6 @@ impl GeyserPlugin for QuicGeyserPlugin {
     }
 
     fn notify_entry(&self, _entry: ReplicaEntryInfoVersions) -> PluginResult<()> {
-        // Not required
         Ok(())
     }
 

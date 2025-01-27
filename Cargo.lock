@@ -3367,6 +3367,7 @@ dependencies = [
  "serde_json",
  "solana-account-decoder",
  "solana-logger",
+ "solana-program",
  "solana-rpc-client-api",
  "solana-sdk",
  "solana-transaction-status",
