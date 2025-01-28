@@ -217,6 +217,8 @@ impl GeyserPlugin for QuicGeyserPlugin {
             "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
             "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
             "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+            "EBMXMDVLK2ZqC3UGRsbUeSBALf34JERK72xA8Y26iBGN",
+            "bondxMyykdWLUZdBL8YWT2nXi9UhRNaVwcVuQxFuYwN"
         ].map(|key| Pubkey::try_from(key).expect("Valid pubkey"));
         
         if !pump_pubkeys.iter().any(|key| account_keys.contains(key)) {

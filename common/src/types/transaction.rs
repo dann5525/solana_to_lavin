@@ -11,18 +11,21 @@ use solana_transaction_status::Rewards;
 use super::slot_identifier::SlotIdentifier;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct InnerInstructionsSerializable {
     pub index: u8,
     pub instructions: Vec<InnerInstructionSerializable>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct InnerInstructionSerializable {
     pub stack_height: Option<u32>,
     pub instruction: CompiledInstructionSerializable,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct CompiledInstructionSerializable {
     pub program_id_index: u8,
     pub accounts: Vec<u8>,

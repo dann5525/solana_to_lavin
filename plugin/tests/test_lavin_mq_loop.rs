@@ -34,7 +34,7 @@ fn test_lavin_mq_loop_independent() {
 
         rt.block_on(async move {
             // ensure your AMQP URL is valid
-            let amqp_url = "amqps://dan:04828406-73c5-4d05-8f25-a3a564bf00ac@polar-ram.lmq.cloudamqp.com/botcloud";
+            let amqp_url = "amqps://dan:RcBBjM9yxBEAht_ND6Z6haoRLc7h4oxH@lavin1.solaya.io/solaya-validator";
             if let Err(e) = run_lavin_mq_loop(amqp_url, rx).await {
                 eprintln!("MQ loop error: {e:?}");
             }
@@ -58,7 +58,7 @@ fn test_lavin_mq_loop_independent() {
             address_table_lookups: vec![],
         },
         is_vote: false,
-        transasction_meta: TransactionMeta {
+        transaction_meta: TransactionMeta {
             error: None,
             fee: 0,
             pre_balances: vec![],
