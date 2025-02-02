@@ -61,7 +61,7 @@ pub async fn run_lavin_mq_loop(amqp_url: &str, mq_rx: Receiver<ChannelMessage>) 
                         }
                     };
 
-                    if let Err(e) = publish_message(&channel, "transactions", &payload).await {
+                    if let Err(e) = publish_message(&channel, "transactionsDurable", &payload).await {
                         log::error!("AMQP publish error for transaction: {e}");
                         sleep(Duration::from_secs(5)).await;
                         continue 'outer;
@@ -91,7 +91,7 @@ pub async fn run_lavin_mq_loop(amqp_url: &str, mq_rx: Receiver<ChannelMessage>) 
                         }
                     };
 
-                    if let Err(e) = publish_message(&channel, "accountChanges", &payload).await {
+                    if let Err(e) = publish_message(&channel, "accountChangesDurable", &payload).await {
                         log::error!("AMQP publish error for account change: {e}");
                         sleep(Duration::from_secs(5)).await;
                         continue 'outer;
@@ -107,7 +107,7 @@ pub async fn run_lavin_mq_loop(amqp_url: &str, mq_rx: Receiver<ChannelMessage>) 
                         }
                     };
 
-                    if let Err(e) = publish_message(&channel, "blockMeta", &payload).await {
+                    if let Err(e) = publish_message(&channel, "blockMetaDurable", &payload).await {
                         log::error!("AMQP publish error for block metadata: {e}");
                         sleep(Duration::from_secs(5)).await;
                         continue 'outer;
