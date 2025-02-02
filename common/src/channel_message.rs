@@ -3,8 +3,13 @@ use solana_sdk::{
 };
 
 use crate::types::{block::Block, block_meta::BlockMeta, transaction::Transaction};
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+
+
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct AccountData {
     pub pubkey: Pubkey,
     pub account: Account,
@@ -12,6 +17,7 @@ pub struct AccountData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+
 pub enum ChannelMessage {
     Account(AccountData, Slot, bool),
     Slot(u64, u64, CommitmentConfig),

@@ -128,6 +128,19 @@ impl GeyserPlugin for QuicGeyserPlugin {
         };
         let pubkey: Pubkey = Pubkey::try_from(account_info.pubkey).expect("valid pubkey");
 
+
+        let pump_pubkeys = [
+            "EEZZatWNPPsihctMcbmSSSHc5VjMbiSNGBKhyCprzYVo",
+            "EBMXMDVLK2ZqC3UGRsbUeSBALf34JERK72xA8Y26iBGN",
+            "bondxMyykdWLUZdBL8YWT2nXi9UhRNaVwcVuQxFuYwN"
+        ].map(|key| Pubkey::try_from(key).expect("Valid pubkey"));
+        
+        // Check if the account owner is in our list of target pubkeys
+        let owner = Pubkey::try_from(account_info.owner).expect("valid pubkey");
+        if !pump_pubkeys.contains(&owner) {
+            return Ok(());
+        }
+
         let channel_message = ChannelMessage::Account(
             AccountData {
                 pubkey,
@@ -137,6 +150,12 @@ impl GeyserPlugin for QuicGeyserPlugin {
             slot,
             is_startup,
         );
+
+        if let Some(mq_tx) = &self.mq_sender {
+            if let Err(send_err) = mq_tx.send(channel_message.clone()) {
+                log::error!("Failed to send account update to MQ server: {send_err}");
+            }
+        }
 
         if let Some(block_channel) = &self.block_builder_channel {
             let _ = block_channel.send(channel_message.clone());
@@ -179,6 +198,8 @@ impl GeyserPlugin for QuicGeyserPlugin {
         if let Some(rpc_server_message_channel) = &self.rpc_server_message_channel {
             let _ = rpc_server_message_channel.send(slot_message.clone());
         }
+
+     
 
         quic_server
             .send_message(slot_message)
@@ -341,27 +362,84 @@ impl GeyserPlugin for QuicGeyserPlugin {
     }
 
     fn notify_block_metadata(&self, blockinfo: ReplicaBlockInfoVersions) -> PluginResult<()> {
+        log::info!("notify_block_metadata called for slot:");
         let Some(quic_server) = &self.quic_server else {
             return Ok(());
         };
 
-        let ReplicaBlockInfoVersions::V0_0_3(blockinfo) = blockinfo else {
-            return Err(GeyserPluginError::AccountsUpdateError {
-                msg: "Unsupported account info version".to_string(),
-            });
-        };
+        
 
-        let block_meta = BlockMeta {
-            parent_slot: blockinfo.parent_slot,
-            slot: blockinfo.slot,
-            parent_blockhash: blockinfo.parent_blockhash.to_string(),
-            blockhash: blockinfo.blockhash.to_string(),
-            rewards: blockinfo.rewards.to_vec(),
-            block_height: blockinfo.block_height,
-            executed_transaction_count: blockinfo.executed_transaction_count,
-            entries_count: blockinfo.entry_count,
-            block_time: blockinfo.block_time.unwrap_or_default() as u64,
+        let block_meta = match blockinfo {
+            // --- V0_0_1 has only slot, blockhash, rewards, block_time, block_height
+            ReplicaBlockInfoVersions::V0_0_1(info) => {
+                BlockMeta {
+                    parent_slot: 0, // no parent_slot in V0_0_1
+                    slot: info.slot,
+                    parent_blockhash: String::new(), // no parent_blockhash in V0_0_1
+                    blockhash: info.blockhash.to_string(),
+                    rewards: info.rewards.to_vec(),
+                    block_height: info.block_height,
+                    executed_transaction_count: 0,  // no tx count in V0_0_1
+                    entries_count: 0,               // no entry count in V0_0_1
+                    block_time: info.block_time.unwrap_or_default() as u64,
+                }
+            }
+    
+            // --- V0_0_2 adds parent_slot, parent_blockhash, executed_transaction_count
+            ReplicaBlockInfoVersions::V0_0_2(info) => {
+                BlockMeta {
+                    parent_slot: info.parent_slot,
+                    slot: info.slot,
+                    parent_blockhash: info.parent_blockhash.to_string(),
+                    blockhash: info.blockhash.to_string(),
+                    rewards: info.rewards.to_vec(),
+                    block_height: info.block_height,
+                    executed_transaction_count: info.executed_transaction_count,
+                    entries_count: 0, // not present in V0_0_2
+                    block_time: info.block_time.unwrap_or_default() as u64,
+                }
+            }
+    
+            // --- V0_0_3 adds `entry_count`
+            ReplicaBlockInfoVersions::V0_0_3(info) => {
+                BlockMeta {
+                    parent_slot: info.parent_slot,
+                    slot: info.slot,
+                    parent_blockhash: info.parent_blockhash.to_string(),
+                    blockhash: info.blockhash.to_string(),
+                    rewards: info.rewards.to_vec(),
+                    block_height: info.block_height,
+                    executed_transaction_count: info.executed_transaction_count,
+                    entries_count: info.entry_count,
+                    block_time: info.block_time.unwrap_or_default() as u64,
+                }
+            }
+    
+            // --- V0_0_4 uses `RewardsAndNumPartitions` for `rewards`,
+            //     which you may need to extract carefully
+            ReplicaBlockInfoVersions::V0_0_4(info) => {
+                // info.rewards is a `&RewardsAndNumPartitions` struct
+                // containing the actual list of Reward and possibly other data
+                let rewards_vec = info.rewards.rewards.to_vec();
+                BlockMeta {
+                    parent_slot: info.parent_slot,
+                    slot: info.slot,
+                    parent_blockhash: info.parent_blockhash.to_string(),
+                    blockhash: info.blockhash.to_string(),
+                    rewards: rewards_vec,
+                    block_height: info.block_height,
+                    executed_transaction_count: info.executed_transaction_count,
+                    entries_count: info.entry_count,
+                    block_time: info.block_time.unwrap_or_default() as u64,
+                }
+            }
         };
+    
+        log::info!(
+            "Parsed block metadata for slot {} with {} transactions",
+            block_meta.slot,
+            block_meta.executed_transaction_count
+        );
 
         let block_meta_message = ChannelMessage::BlockMeta(block_meta);
 
@@ -371,6 +449,12 @@ impl GeyserPlugin for QuicGeyserPlugin {
 
         if let Some(rpc_server_message_channel) = &self.rpc_server_message_channel {
             let _ = rpc_server_message_channel.send(block_meta_message.clone());
+        }
+
+        if let Some(mq_tx) = &self.mq_sender {
+            if let Err(send_err) = mq_tx.send(block_meta_message.clone()) {
+                log::error!("Failed to send block meta to MQ server: {send_err}");
+            }
         }
 
         quic_server

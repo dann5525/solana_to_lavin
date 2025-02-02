@@ -12,6 +12,7 @@ pub struct SlotMeta {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[repr(C)]
+#[serde(rename_all = "camelCase")]
 pub struct BlockMeta {
     pub parent_slot: u64,
     pub slot: u64,
