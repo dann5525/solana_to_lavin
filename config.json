@@ -2,13 +2,26 @@
   "libpath": "target/release/libquic_geyser_plugin.so",
   "quic_plugin": {
     "address": "0.0.0.0:10900",
-    "quic_parameters" : {
-        "disconnect_laggy_client" : false
+    "quic_parameters": {
+      "disconnect_laggy_client": false
     },
     "compression_parameters": {
-        "compression_type": "None"
-      }
+      "compression_type": "None"
+    }
   },
-  "..."
+  "amqp_url": "...",
+  "account_update_pubkeys": [
+    "EEZZatWNPPsihctMcbmSSSHc5VjMbiSNGBKhyCprzYVo",
+    "EBMXMDVLK2ZqC3UGRsbUeSBALf34JERK72xA8Y26iBGN",
+    "bondxMyykdWLUZdBL8YWT2nXi9UhRNaVwcVuQxFuYwN"
+  ],
+  "transaction_pubkeys": [
+    "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+    "EEZZatWNPPsihctMcbmSSSHc5VjMbiSNGBKhyCprzYVo",
+    "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+    "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+    "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+    "EBMXMDVLK2ZqC3UGRsbUeSBALf34JERK72xA8Y26iBGN",
+    "bondxMyykdWLUZdBL8YWT2nXi9UhRNaVwcVuQxFuYwN"
+  ]
 }
-

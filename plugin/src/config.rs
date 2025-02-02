@@ -1,5 +1,4 @@
 use std::{fs::read_to_string, path::Path};
-
 use agave_geyser_plugin_interface::geyser_plugin_interface::GeyserPluginError;
 use quic_geyser_common::config::ConfigQuicPlugin;
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,11 @@ pub struct Config {
     pub libpath: String,
     pub amqp_url: String,
     pub quic_plugin: ConfigQuicPlugin,
+    // New fields:
+    #[serde(default)]
+    pub account_update_pubkeys: Vec<String>,
+    #[serde(default)]
+    pub transaction_pubkeys: Vec<String>,
 }
 
 impl Config {

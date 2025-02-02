@@ -32,20 +32,18 @@ pub async fn run_lavin_mq_loop(amqp_url: &str, mq_rx: Receiver<ChannelMessage>) 
                 continue 'outer;
             }
         };
+        let queue_options = QueueDeclareOptions {
+            durable: true,       // This makes the queue durable
+            ..Default::default()
+        };
 
         // 3) Declare both queues
-        for queue_name in ["transactions", "accountChanges", "blockMeta"].iter() {
+       for queue_name in ["transactionsDurable", "accountChangesDurable", "blockMetaDurable"] {
             if let Err(e) = channel
-                .queue_declare(
-                    queue_name,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
-                )
+                .queue_declare(queue_name, queue_options.clone(), FieldTable::default())
                 .await
             {
-                log::error!("Error declaring queue {}: {e}, retrying in 5s...", queue_name);
-                sleep(Duration::from_secs(5)).await;
-                continue 'outer;
+                eprintln!("Error declaring queue {}: {}", queue_name, e);
             }
         }
 

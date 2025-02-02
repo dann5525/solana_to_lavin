@@ -1,3 +1,4 @@
+// src/quic_geyser_plugin.rs
 use crate::config::Config;
 use crate::lavin_mq_loop::run_lavin_mq_loop;
 use agave_geyser_plugin_interface::geyser_plugin_interface::{
@@ -11,7 +12,10 @@ use quic_geyser_common::{
     types::{
         block_meta::BlockMeta,
         slot_identifier::SlotIdentifier,
-        transaction::{Transaction, TransactionMeta, TransactionTokenBalanceSerializable, InnerInstructionsSerializable}
+        transaction::{
+            Transaction, TransactionMeta, TransactionTokenBalanceSerializable,
+            InnerInstructionsSerializable,
+        },
     },
 };
 use quic_geyser_server::quic_server::QuicServer;
@@ -19,16 +23,18 @@ use solana_sdk::{
     account::Account, clock::Slot, commitment_config::CommitmentConfig,
     message::v0::Message, pubkey::Pubkey,
 };
-
+use std::str::FromStr;
 
 #[derive(Debug, Default)]
 pub struct QuicGeyserPlugin {
     quic_server: Option<QuicServer>,
     block_builder_channel: Option<std::sync::mpsc::Sender<ChannelMessage>>,
     rpc_server_message_channel: Option<std::sync::mpsc::Sender<ChannelMessage>>,
-    // Add these fields:
     mq_sender: Option<std::sync::mpsc::Sender<ChannelMessage>>,
     mq_thread_handle: Option<std::thread::JoinHandle<()>>,
+    // New fields to store parsed pubkeys
+    account_update_pubkeys: Vec<Pubkey>,
+    transaction_pubkeys: Vec<Pubkey>,
 }
 
 impl GeyserPlugin for QuicGeyserPlugin {
@@ -46,6 +52,16 @@ impl GeyserPlugin for QuicGeyserPlugin {
             }
         };
 
+        // Parse the pubkeys from the top-level config fields.
+        self.account_update_pubkeys = config.account_update_pubkeys
+            .iter()
+            .map(|s| Pubkey::from_str(s).expect("Valid pubkey"))
+            .collect();
+        self.transaction_pubkeys = config.transaction_pubkeys
+            .iter()
+            .map(|s| Pubkey::from_str(s).expect("Valid pubkey"))
+            .collect();
+
         let compression_type = config.quic_plugin.compression_parameters.compression_type;
         let enable_block_builder = config.quic_plugin.enable_block_builder;
         let build_blocks_with_accounts = config.quic_plugin.build_blocks_with_accounts;
@@ -55,7 +71,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
             GeyserPluginError::Custom(Box::new(QuicGeyserError::ErrorConfiguringServer))
         })?;
         if enable_block_builder {
-            // disable block building for now
+            // Start block-building thread if enabled.
             let (sx, rx) = std::sync::mpsc::channel();
             start_block_building_thread(
                 rx,
@@ -65,26 +81,24 @@ impl GeyserPlugin for QuicGeyserPlugin {
             );
             self.block_builder_channel = Some(sx);
         }
-
         self.quic_server = Some(quic_server);
 
         // --- Start the MQ server thread
         let (mq_tx, mq_rx) = std::sync::mpsc::channel::<ChannelMessage>();
         self.mq_sender = Some(mq_tx);
 
+        // Use AMQP URL from either the environment or the config.
         let amqp_url = std::env::var("AMQP_URL").unwrap_or_else(|_| config.amqp_url.clone());
 
         let handle = std::thread::spawn(move || {
-            // Build a single-threaded tokio runtime
+            // Build a single-threaded Tokio runtime.
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("Failed to build tokio runtime for MQ loop");
 
             rt.block_on(async move {
-                // Suppose this function is your tested code
                 if let Err(e) = run_lavin_mq_loop(&amqp_url, mq_rx).await {
-                    // Proper error handling: log and exit
                     log::error!("Lavin MQ loop error: {e:?}");
                 }
             });
@@ -119,6 +133,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
                 msg: "Unsupported account info version".to_string(),
             });
         };
+
         let account = Account {
             lamports: account_info.lamports,
             data: account_info.data.to_vec(),
@@ -128,16 +143,9 @@ impl GeyserPlugin for QuicGeyserPlugin {
         };
         let pubkey: Pubkey = Pubkey::try_from(account_info.pubkey).expect("valid pubkey");
 
-
-        let pump_pubkeys = [
-            "EEZZatWNPPsihctMcbmSSSHc5VjMbiSNGBKhyCprzYVo",
-            "EBMXMDVLK2ZqC3UGRsbUeSBALf34JERK72xA8Y26iBGN",
-            "bondxMyykdWLUZdBL8YWT2nXi9UhRNaVwcVuQxFuYwN"
-        ].map(|key| Pubkey::try_from(key).expect("Valid pubkey"));
-        
-        // Check if the account owner is in our list of target pubkeys
+        // Use the allowed pubkeys loaded from the config.
         let owner = Pubkey::try_from(account_info.owner).expect("valid pubkey");
-        if !pump_pubkeys.contains(&owner) {
+        if !self.account_update_pubkeys.contains(&owner) {
             return Ok(());
         }
 
@@ -199,8 +207,6 @@ impl GeyserPlugin for QuicGeyserPlugin {
             let _ = rpc_server_message_channel.send(slot_message.clone());
         }
 
-     
-
         quic_server
             .send_message(slot_message)
             .map_err(|e| GeyserPluginError::Custom(Box::new(e)))?;
@@ -224,25 +230,19 @@ impl GeyserPlugin for QuicGeyserPlugin {
 
         let message = solana_transaction.transaction.message();
         let mut account_keys = vec![];
-
         for index in 0.. {
-            let account = message.account_keys().get(index);
-            match account {
+            match message.account_keys().get(index) {
                 Some(account) => account_keys.push(*account),
                 None => break,
             }
         }
-        let pump_pubkeys = [
-            "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
-            "EEZZatWNPPsihctMcbmSSSHc5VjMbiSNGBKhyCprzYVo",
-            "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
-            "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
-            "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
-            "EBMXMDVLK2ZqC3UGRsbUeSBALf34JERK72xA8Y26iBGN",
-            "bondxMyykdWLUZdBL8YWT2nXi9UhRNaVwcVuQxFuYwN"
-        ].map(|key| Pubkey::try_from(key).expect("Valid pubkey"));
-        
-        if !pump_pubkeys.iter().any(|key| account_keys.contains(key)) {
+
+        // Check if any of the allowed transaction pubkeys are present.
+        if !self
+            .transaction_pubkeys
+            .iter()
+            .any(|key| account_keys.contains(key))
+        {
             return Ok(());
         }
 
@@ -255,9 +255,6 @@ impl GeyserPlugin for QuicGeyserPlugin {
         };
 
         let status_meta = solana_transaction.transaction_status_meta;
-
-      
-
         let transaction = Transaction {
             slot_identifier: SlotIdentifier { slot },
             signatures: solana_transaction.transaction.signatures().to_vec(),
@@ -278,17 +275,13 @@ impl GeyserPlugin for QuicGeyserPlugin {
                         .unwrap_or(&Vec::new())
                         .iter()
                         .map(|b| TransactionTokenBalanceSerializable {
-                            token_amount: b
-                                .ui_token_amount
-                                .amount
-                                .parse::<u64>()
-                                .unwrap_or_default(),
+                            token_amount: b.ui_token_amount.amount.parse::<u64>().unwrap_or_default(),
                             account_index: b.account_index,
                             mint: b.mint.clone(),
                             owner: b.owner.clone(),
                             program_id: b.program_id.clone(),
                         })
-                        .collect::<Vec<TransactionTokenBalanceSerializable>>(),
+                        .collect::<Vec<_>>(),
                 ),
                 pre_token_balances: Some(
                     status_meta
@@ -297,17 +290,13 @@ impl GeyserPlugin for QuicGeyserPlugin {
                         .unwrap_or(&Vec::new())
                         .iter()
                         .map(|b| TransactionTokenBalanceSerializable {
-                            token_amount: b
-                                .ui_token_amount
-                                .amount
-                                .parse::<u64>()
-                                .unwrap_or_default(),
+                            token_amount: b.ui_token_amount.amount.parse::<u64>().unwrap_or_default(),
                             account_index: b.account_index,
                             mint: b.mint.clone(),
                             owner: b.owner.clone(),
                             program_id: b.program_id.clone(),
                         })
-                        .collect::<Vec<TransactionTokenBalanceSerializable>>(),
+                        .collect::<Vec<_>>(),
                 ),
                 inner_instructions: status_meta
                     .inner_instructions
@@ -316,9 +305,8 @@ impl GeyserPlugin for QuicGeyserPlugin {
                         ix_vec
                             .iter()
                             .map(InnerInstructionsSerializable::from)
-                            .collect::<Vec<InnerInstructionsSerializable>>()
+                            .collect::<Vec<_>>()
                     }),
-
                 log_messages: status_meta.log_messages.clone(),
                 rewards: status_meta.rewards.clone(),
                 loaded_addresses: status_meta.loaded_addresses.clone(),
@@ -328,13 +316,12 @@ impl GeyserPlugin for QuicGeyserPlugin {
             index: solana_transaction.index as u64,
         };
 
-        // Check if the transaction has an error, and skip if so:
         if transaction.transaction_meta.error.is_some() {
             log::info!(
-                "Skipping transaction with error: {:?}", 
+                "Skipping transaction with error: {:?}",
                 transaction.transaction_meta.error
             );
-            return Ok(()); 
+            return Ok(());
         }
 
         let transaction_message = ChannelMessage::Transaction(Box::new(transaction));
@@ -344,9 +331,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
         }
 
         if let Some(mq_tx) = &self.mq_sender {
-            // try_send if you want non-blocking, or send if you can block
             if let Err(send_err) = mq_tx.send(transaction_message.clone()) {
-                // robust error handling:
                 log::error!("Failed to send transaction to MQ server: {send_err}");
             }
         }
@@ -367,59 +352,41 @@ impl GeyserPlugin for QuicGeyserPlugin {
             return Ok(());
         };
 
-        
-
         let block_meta = match blockinfo {
-            // --- V0_0_1 has only slot, blockhash, rewards, block_time, block_height
-            ReplicaBlockInfoVersions::V0_0_1(info) => {
-                BlockMeta {
-                    parent_slot: 0, // no parent_slot in V0_0_1
-                    slot: info.slot,
-                    parent_blockhash: String::new(), // no parent_blockhash in V0_0_1
-                    blockhash: info.blockhash.to_string(),
-                    rewards: info.rewards.to_vec(),
-                    block_height: info.block_height,
-                    executed_transaction_count: 0,  // no tx count in V0_0_1
-                    entries_count: 0,               // no entry count in V0_0_1
-                    block_time: info.block_time.unwrap_or_default() as u64,
-                }
-            }
-    
-            // --- V0_0_2 adds parent_slot, parent_blockhash, executed_transaction_count
-            ReplicaBlockInfoVersions::V0_0_2(info) => {
-                BlockMeta {
-                    parent_slot: info.parent_slot,
-                    slot: info.slot,
-                    parent_blockhash: info.parent_blockhash.to_string(),
-                    blockhash: info.blockhash.to_string(),
-                    rewards: info.rewards.to_vec(),
-                    block_height: info.block_height,
-                    executed_transaction_count: info.executed_transaction_count,
-                    entries_count: 0, // not present in V0_0_2
-                    block_time: info.block_time.unwrap_or_default() as u64,
-                }
-            }
-    
-            // --- V0_0_3 adds `entry_count`
-            ReplicaBlockInfoVersions::V0_0_3(info) => {
-                BlockMeta {
-                    parent_slot: info.parent_slot,
-                    slot: info.slot,
-                    parent_blockhash: info.parent_blockhash.to_string(),
-                    blockhash: info.blockhash.to_string(),
-                    rewards: info.rewards.to_vec(),
-                    block_height: info.block_height,
-                    executed_transaction_count: info.executed_transaction_count,
-                    entries_count: info.entry_count,
-                    block_time: info.block_time.unwrap_or_default() as u64,
-                }
-            }
-    
-            // --- V0_0_4 uses `RewardsAndNumPartitions` for `rewards`,
-            //     which you may need to extract carefully
+            ReplicaBlockInfoVersions::V0_0_1(info) => BlockMeta {
+                parent_slot: 0,
+                slot: info.slot,
+                parent_blockhash: String::new(),
+                blockhash: info.blockhash.to_string(),
+                rewards: info.rewards.to_vec(),
+                block_height: info.block_height,
+                executed_transaction_count: 0,
+                entries_count: 0,
+                block_time: info.block_time.unwrap_or_default() as u64,
+            },
+            ReplicaBlockInfoVersions::V0_0_2(info) => BlockMeta {
+                parent_slot: info.parent_slot,
+                slot: info.slot,
+                parent_blockhash: info.parent_blockhash.to_string(),
+                blockhash: info.blockhash.to_string(),
+                rewards: info.rewards.to_vec(),
+                block_height: info.block_height,
+                executed_transaction_count: info.executed_transaction_count,
+                entries_count: 0,
+                block_time: info.block_time.unwrap_or_default() as u64,
+            },
+            ReplicaBlockInfoVersions::V0_0_3(info) => BlockMeta {
+                parent_slot: info.parent_slot,
+                slot: info.slot,
+                parent_blockhash: info.parent_blockhash.to_string(),
+                blockhash: info.blockhash.to_string(),
+                rewards: info.rewards.to_vec(),
+                block_height: info.block_height,
+                executed_transaction_count: info.executed_transaction_count,
+                entries_count: info.entry_count,
+                block_time: info.block_time.unwrap_or_default() as u64,
+            },
             ReplicaBlockInfoVersions::V0_0_4(info) => {
-                // info.rewards is a `&RewardsAndNumPartitions` struct
-                // containing the actual list of Reward and possibly other data
                 let rewards_vec = info.rewards.rewards.to_vec();
                 BlockMeta {
                     parent_slot: info.parent_slot,
@@ -434,7 +401,7 @@ impl GeyserPlugin for QuicGeyserPlugin {
                 }
             }
         };
-    
+
         log::info!(
             "Parsed block metadata for slot {} with {} transactions",
             block_meta.slot,
@@ -479,7 +446,6 @@ impl GeyserPlugin for QuicGeyserPlugin {
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
 /// # Safety
-///
 /// This function returns the Plugin pointer as trait GeyserPlugin.
 pub unsafe extern "C" fn _create_plugin() -> *mut dyn GeyserPlugin {
     let plugin = QuicGeyserPlugin::default();
